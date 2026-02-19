@@ -1,8 +1,10 @@
-﻿using ResumeAI.RagwithGraph.Api.Model;
+﻿using Neo4j.Driver;
+using ResumeAI.RagwithGraph.Api.Model;
 using ResumeAI.RagwithGraph.Api.Repository.Declaration;
 using ResumeAI.RagwithGraph.Api.Services.Declaration;
 using ResumeAI.RagwithGraph.Common;
 using ResumeAI.RagwithGraph.Common.Model;
+using System.Text.Json;
 
 namespace ResumeAI.RagwithGraph.Api.Services.Implementation
 {
@@ -77,5 +79,73 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
                 return sRes.Failure();
             }
         }
+
+        public async Task<OperationResult<RankedCandidatesResponse>> GetRankedCandidatesAsync(Guid jobId)
+        {
+            OperationResult<RankedCandidatesResponse> result = new();
+
+            try
+            {
+                if (jobId == Guid.Empty) return result.Failure();
+
+                var repoResult = await _repository.GetRankedCandidatesByJobIdAsync(jobId);
+
+                if (repoResult.ExecutionState != ExecutionState.Success || 
+                    repoResult.ExecutionState == ExecutionState.Pending || 
+                    repoResult.Data is null)
+                    return result.Failure();
+
+                var candidates = repoResult.Data;
+
+                var response = new RankedCandidatesResponse
+                {
+                    JobId = jobId,
+                    TotalCandidates = candidates.Count,
+                    Candidates = candidates,
+                    RankedCandidateIds = candidates
+                        .Select(c => c.CandidateId)
+                        .ToList()
+                };
+
+                _logger.LogInformation(
+                    "Ranked {Count} candidates for JobId {JobId}",
+                    response.TotalCandidates,
+                    jobId);
+
+                return result.Success(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error ranking candidates for JobId {JobId}", jobId);
+
+                return result.Failure();
+            }
+        }
+        public async Task<List<string>> ExecuteHrQueryAndAggregateAsync(List<string> cypherQueries, List<string> rankedCandidateIds)
+        {
+            var aggregatedResults = new List<string>();
+
+            foreach (var query in cypherQueries)
+            {
+                // 2. Execute each query on Neo4j with the ranked candidate IDs
+                var records = await _repository.ExecuteHrQueryAsync(query, new Dictionary<string, object>
+                {
+                    ["ranked_candidate_ids"] = rankedCandidateIds
+                });
+
+                // 3. Serialize each record as JSON text for LLM input
+                foreach (var record in records)
+                {
+                    // Convert all fields in record to dictionary
+                    var dict = record.Keys.ToDictionary(k => k, k => record[k]?.ToString());
+                    var json = JsonSerializer.Serialize(dict);
+                    aggregatedResults.Add(json);
+                }
+            }
+
+            return aggregatedResults;
+        }
+
     }
 }

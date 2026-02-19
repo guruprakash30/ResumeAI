@@ -12,6 +12,7 @@ using ResumeAI.RagwithGraph.Api.Utility;
 using ResumeAI.RagwithGraph.Common;
 using ResumeAI.RagwithGraph.Common.Model;
 using System.Net;
+using System.Text;
 
 namespace ResumeAI.RagwithGraph.Api.Endpoints
 {
@@ -145,6 +146,24 @@ namespace ResumeAI.RagwithGraph.Api.Endpoints
                 var orderedChunkFrequency = chunkFrequency
                     .OrderByDescending(kvp => kvp.Value)
                     .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                var rankedRes = await neo4JGraphService.GetRankedCandidatesAsync(jobId);
+
+                var hrQuery = await new StreamReader(context.Request.Body, Encoding.UTF8).ReadToEndAsync();
+
+                // 1. Ask LLM to generate Cypher queries for the HR query
+                var cypherQueries = await llmAdapterService.GenerateHrCypherQueriesAsync(hrQuery);
+
+                /*{
+                    "answerToHrQuery": [
+                      { "candidate_id": "abc", "full_name": "John Doe"...... },
+                      { "full_name": "Jane Smith"....... }
+                    ]
+                  }
+               */ /*Not of any specific format, just the required information for hr-query, reducing the input tokens to llm*/
+                var answerToHrQuery = await neo4JGraphService.ExecuteHrQueryAndAggregateAsync(cypherQueries, rankedRes.Data!.RankedCandidateIds);
+
+
             });
 
             app.MapPost("resume-rag-aiservice/v1/post-job", async (HttpContext context, ILLMAdapterService llmAdapterService, IAISearchService aiSearchService, INeo4jGraphService neo4JGraphService) =>

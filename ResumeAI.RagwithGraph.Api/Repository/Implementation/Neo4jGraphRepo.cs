@@ -395,6 +395,61 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
             }
         }
 
+        public async Task<List<string>> ExecuteHrQueryAsync(string cypherQuery, List<string> rankedCandidateIds)
+        {
+            IAsyncSession? session = null;
+
+            try
+            {
+                session = _driver.AsyncSession(o =>
+                    o.WithDefaultAccessMode(AccessMode.Read));
+
+                var cursor = await session.RunAsync(cypherQuery, new
+                {
+                    ranked_candidate_ids = rankedCandidateIds
+                });
+
+                var records = await cursor.ToListAsync();
+
+                return records
+                    .Select(r => r["candidate_id"].As<string>())
+                    .ToList();
+            }
+            finally
+            {
+                if (session != null)
+                    await session.CloseAsync();
+            }
+        }
+
+        public async Task<IReadOnlyList<IRecord>> ExecuteHrQueryAsync(string cypherQuery, IDictionary<string, object> parameters)
+        {
+            IAsyncSession? session = null;
+            try
+            {
+                session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
+
+                var cursor = await session.RunAsync(cypherQuery, parameters);
+
+                var records = await cursor.ToListAsync();
+
+                var summary = await cursor.ConsumeAsync();
+                _logger.LogInformation("HR query executed: {Summary}", summary);
+
+                return records;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing HR query.");
+                return Array.Empty<IRecord>();
+            }
+            finally
+            {
+                if (session is not null)
+                    await session.CloseAsync();
+            }
+        }
+
         public async ValueTask DisposeAsync()
         {
             _logger.LogWarning("Neo4j graph database connection is about to close");

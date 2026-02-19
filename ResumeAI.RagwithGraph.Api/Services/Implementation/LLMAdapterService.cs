@@ -121,5 +121,34 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
                 });
         }
 
+        public async Task<List<string>> GenerateHrCypherQueriesAsync(string hrQuery)
+        {
+            try
+            {
+                var messages = new List<ChatMessage>
+                                   {
+                                       new SystemChatMessage(LLMSystemMessages.Neo4jGraphdbQueryGenerator),
+                                       new UserChatMessage(hrQuery)
+                                   };
+
+                var options = new ChatCompletionOptions
+                {
+                    MaxOutputTokenCount = 2000,
+                    Temperature = 0.0f,   // deterministic
+                    TopP = 1.0f
+                };
+
+                var response = await _chatClient.CompleteChatAsync(messages, options);
+
+                var output = response.Value.Content[0].Text;
+
+                return JsonSerializer.Deserialize<List<string>>(output)
+                       ?? new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
     }
 }
