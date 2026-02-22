@@ -18,6 +18,7 @@
         public string? Email { get; set; }
         public float? Total_Experience_Years { get; set; }
         public DateTime? Last_Updated { get; set; }
+        public string ResumeId { get; set; }
     }
 
     public sealed class LocationNode
@@ -84,7 +85,7 @@
         public InstitutionNode Institution { get; set; } = new();
         public TimePeriodNode Time_Period { get; set; } = new();
     }
-
+        
     public sealed class DegreeNode
     {
         public string? Name { get; set; }

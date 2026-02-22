@@ -5,6 +5,7 @@
         public string CandidateId { get; set; } = default!;
         public string FullName { get; set; } = default!;
         public double TotalExperience { get; set; }
+        public string ResumeId { get; set; } = default!;
         public double Score { get; set; }
     }
 

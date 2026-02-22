@@ -474,6 +474,7 @@
                        full_name: string,
                        email: string,
                        total_experience_years: float,
+                       resume_id: string,
                        last_updated: datetime
                    })
                    
@@ -591,5 +592,58 @@
                    No comments.
                    No additional text.
                    Only a JSON array of executable Cypher query strings.";
+
+
+        public const string HrQueryReasoningWithChunks = @"You are an AI assistant designed to answer HR queries about candidates.
+
+                                           Inputs provided:
+                                           1. HR Query: ""{hrQuery}""
+                                           2. Graph data model (schema):
+                                              - Nodes:
+                                                (:Candidate { candidate_id, full_name, email, total_experience_years, resume_id, last_updated })
+                                                (:Skill { name, category })
+                                                (:Location { city, state, country })
+                                                (:SeniorityLevel { name })
+                                                (:Role { role_id, title, level })
+                                                (:Company { name, industry })
+                                                (:TimePeriod { from_date, to_date })
+                                                (:Project { project_id, name, domain, complexity, scale })
+                                                (:Degree { name })
+                                                (:FieldOfStudy { name })
+                                                (:Institution { name })
+                                              - Relationships:
+                                                (c)-[:HAS_SKILL]->(s:Skill)
+                                                (c)-[:LOCATED_IN]->(l:Location)
+                                                (c)-[:HAS_SENIORITY]->(sen:SeniorityLevel)
+                                                (c)-[:WORKED_AS]->(r:Role)-[:AT_COMPANY]->(co:Company)-[:During]->(tp:TimePeriod)
+                                                (c)-[:WORKED_ON]->(p:Project)
+                                                (c)-[:EARNED_DEGREE]->(d:Degree)-[:IN_FIELD]->(f:FieldOfStudy)-[:AT_INSTITUTION]->(i:Institution)-[:DURING]->(tp:TimePeriod)
+                                           
+                                           3. Ranked candidates with updated scores (graph + semantic frequency boost):
+                                              - Format:
+                                                [
+                                                  { ""candidate_id"": ""..."", ""full_name"": ""..."", ""resume_id"": ""..."", ""total_experience_years"": ..., ""score"": ... },
+                                                  ...
+                                                ]
+                                               Data:{rankedCandidates}
+                                           
+                                           4. Answer from graph query for the HR question:
+                                              {answerToHrQuery}
+                                           
+                                           5. Candidate document chunks (grouped by ResumeId):
+                                           {aiSearchChunks}
+                                           
+                                           Instructions for reasoning:
+                                           - Only use the provided graph data, candidate information, and document chunks.
+                                           - Candidates are already pre-filtered for relevance.
+                                           - Candidate ""score"" indicates their relevance: higher score = more relevant.
+                                           - When reasoning or giving examples, **cite the Title (ResumeId) of the document chunk** where information is found.
+                                           - Aggregate relevant information across graph data, candidate chunks, and HR query to provide a precise answer.
+                                           - Do NOT hallucinate missing data.
+                                           - Return output that answers the HR query directly, using graph + chunk evidence where possible.
+                                           
+                                           Output format:
+                                           - Provide a clear, structured answer to the HR query.
+                                           - Whenever you refer to a fact from a chunk, include its Title for reference.";
     }
 }

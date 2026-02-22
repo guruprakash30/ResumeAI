@@ -73,6 +73,7 @@ namespace ResumeAI.RagwithGraph.Api.Utility
                     throw new Exception(message: "The error could be File is required and its missing");
                 }
 
+                requestDTO.FileId = Guid.NewGuid();
                 requestDTO.FileName = contentDisposition.FileName.Value;
 
                 var res = await requestDTO.BlobStorageService.SaveFileToBlobAsync(requestDTO, section.Body);

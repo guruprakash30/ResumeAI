@@ -5,6 +5,7 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using ResumeAI.RagwithGraph.Api.Services.Declaration;
 using System.Numerics;
+using System.Text;
 
 namespace ResumeAI.RagwithGraph.Api.Services.Implementation
 {
@@ -41,7 +42,7 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
             var options = new SearchOptions
             {
                 Size = 10,
-                Select = { "chunk_id" },
+                Select = { "chunk_id" , "title" },
                 VectorSearch = new()
                 {
                     Queries = { vectorOptions }
@@ -60,6 +61,57 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
                 .ToList();
 
             return results;
+        }
+
+        public async Task<string> GetChunksForLLmAsync(IEnumerable<string> chunkIds)
+        {
+
+            if (!chunkIds.Any()) return string.Empty;
+
+            var joinedIds = string.Join(",", chunkIds);
+
+            var options = new SearchOptions
+            {
+                Size = chunkIds.Count(),
+                Filter = $"search.in(chunk_id, '{joinedIds}', ',')",
+                Select = { "chunk_id", "title", "chunk" }
+            };
+
+            var response = await _searchClient.SearchAsync<SearchDocument>("*", options);
+
+            var grouped = new Dictionary<string, List<string>>();
+
+            await foreach (var result in response.Value.GetResultsAsync())
+            {
+                var doc = result.Document;
+
+                var title = doc["title"]!.ToString()!;
+                var chunkText = doc["chunk"]?.ToString() ?? string.Empty;
+
+                if (!grouped.ContainsKey(title))
+                    grouped[title] = new List<string>();
+
+                grouped[title].Add(chunkText);
+            }
+
+            var sb = new StringBuilder();
+
+            foreach (var group in grouped)
+            {
+                sb.AppendLine($"Title: {group.Key}");
+                sb.AppendLine();
+
+                foreach (var chunk in group.Value)
+                {
+                    sb.AppendLine(chunk);
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("--------------------------------------------------");
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
         }
     }
 }

@@ -79,6 +79,8 @@ namespace ResumeAI.RagwithGraph.Api.Endpoints
                         }
                     }
 
+                    resumeGraphNormalized.Data!.Candidate.ResumeId = $"{res.Data.FileID}{res.Data.FileName}";
+
                     var candidateId = await neo4JGraphService.PersistResumeAsync(resumeGraphNormalized.Data!);
 
                     return Results.Ok(new
@@ -138,16 +140,52 @@ namespace ResumeAI.RagwithGraph.Api.Endpoints
                 var searchResults = await Task.WhenAll(tasks);
 
                 var chunkFrequency = searchResults
-                    .SelectMany(resultList => resultList)
-                    .Select(r => r.Document["chunk_id"]!.ToString())             
-                    .GroupBy(id => id!)                                          
-                    .ToDictionary(g => g.Key, g => g.Count());                  
+                                    .SelectMany(resultList => resultList)
+                                    .Select(r => new
+                                    {
+                                        ChunkId = r.Document["chunk_id"]!.ToString()!,
+                                        Title = r.Document["title"]?.ToString() // resumeId
+                                    })
+                                    .GroupBy(x => new { x.ChunkId, x.Title })
+                                    .ToDictionary(
+                                        g => g.Key,
+                                        g => g.Count()
+                                    );
 
                 var orderedChunkFrequency = chunkFrequency
                     .OrderByDescending(kvp => kvp.Value)
                     .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
                 var rankedRes = await neo4JGraphService.GetRankedCandidatesAsync(jobId);
+
+                var allowedResumeIds = rankedRes.Data!.Candidates
+                                       .Select(c => c.ResumeId)
+                                       .ToHashSet();
+
+                // Filter chunkFrequency to keep only chunks belonging to candidates in rankedCandidatesResponse (reduce noise)
+                var filteredChunkFrequency = chunkFrequency
+                    .Where(kvp => allowedResumeIds.Contains(kvp.Key.Title))
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                var resumeFrequencyMap = filteredChunkFrequency
+                                         .GroupBy(kvp => kvp.Key.Title) // Title == ResumeId
+                                         .ToDictionary(
+                                             g => g.Key!,
+                                             g => g.Sum(x => x.Value)
+                                         );
+
+                foreach (var candidate in rankedRes.Data!.Candidates)
+                {
+                    if (resumeFrequencyMap.TryGetValue(candidate.ResumeId, out var freq))
+                    {
+                        candidate.Score += freq;
+                    }
+                }
+
+                var chunkIds = filteredChunkFrequency
+                               .Select(kvp => kvp.Key.ChunkId)
+                               .Distinct()
+                               .ToList();
 
                 var hrQuery = await new StreamReader(context.Request.Body, Encoding.UTF8).ReadToEndAsync();
 
@@ -163,7 +201,11 @@ namespace ResumeAI.RagwithGraph.Api.Endpoints
                */ /*Not of any specific format, just the required information for hr-query, reducing the input tokens to llm*/
                 var answerToHrQuery = await neo4JGraphService.ExecuteHrQueryAndAggregateAsync(cypherQueries, rankedRes.Data!.RankedCandidateIds);
 
+                var aiSearchChunks = await aiSearchService.GetChunksForLLmAsync(chunkIds);
 
+                var llmAnswerbasedonGroundedKnowledgeGraph = await llmAdapterService.ReasonHrQueryWithCandidatesAsync(hrQuery, rankedRes.Data!, answerToHrQuery, aiSearchChunks);
+
+                return Results.Ok(llmAnswerbasedonGroundedKnowledgeGraph);
             });
 
             app.MapPost("resume-rag-aiservice/v1/post-job", async (HttpContext context, ILLMAdapterService llmAdapterService, IAISearchService aiSearchService, INeo4jGraphService neo4JGraphService) =>

@@ -150,14 +150,16 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     SET c.full_name = $fullName,
                         c.email = $email,
                         c.total_experience_years = $totalExperience,
-                        c.last_updated = $lastUpdated
-                ", new
+                        c.last_updated = $lastUpdated,
+                        c.resume_id = $resumeId
+                    ", new
                     {
                         candidateId = candidateId.ToString(),
                         fullName = resume.Candidate.Full_Name,
                         email = resume.Candidate.Email,
                         totalExperience = resume.Candidate.Total_Experience_Years,
-                        lastUpdated = resume.Candidate.Last_Updated
+                        lastUpdated = resume.Candidate.Last_Updated,
+                        resumeId = resume.Candidate.ResumeId
                     });
 
                     // ---------- Location ----------
@@ -358,6 +360,7 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                                           c.candidate_id AS candidateId,
                                           c.full_name AS fullName,
                                           c.total_experience_years AS totalExperience,
+                                          c.resume_id AS resumeId,
                                           totalScore AS score
                                       ORDER BY score DESC
                                       """;
@@ -375,6 +378,7 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     CandidateId = r["candidateId"].As<string>(),
                     FullName = r["fullName"].As<string>(),
                     TotalExperience = r["totalExperience"].As<double>(),
+                    ResumeId = r["resumeId"].As<string>(),
                     Score = r["score"].As<double>()
                 }).ToList();
 
@@ -391,33 +395,6 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
             finally
             {
                 if (session is not null)
-                    await session.CloseAsync();
-            }
-        }
-
-        public async Task<List<string>> ExecuteHrQueryAsync(string cypherQuery, List<string> rankedCandidateIds)
-        {
-            IAsyncSession? session = null;
-
-            try
-            {
-                session = _driver.AsyncSession(o =>
-                    o.WithDefaultAccessMode(AccessMode.Read));
-
-                var cursor = await session.RunAsync(cypherQuery, new
-                {
-                    ranked_candidate_ids = rankedCandidateIds
-                });
-
-                var records = await cursor.ToListAsync();
-
-                return records
-                    .Select(r => r["candidate_id"].As<string>())
-                    .ToList();
-            }
-            finally
-            {
-                if (session != null)
                     await session.CloseAsync();
             }
         }

@@ -150,5 +150,45 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
                 return new List<string>();
             }
         }
+
+
+        public async Task<string> ReasonHrQueryWithCandidatesAsync( string hrQuery, RankedCandidatesResponse rankedCandidates, object answerToHrQuery, string aiSearchChunks)
+        {
+            // Serialize candidates and graph answer
+            var rankedCandidatesJson = JsonSerializer.Serialize(
+                rankedCandidates.Candidates,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            var answerToHrQueryJson = JsonSerializer.Serialize(
+                answerToHrQuery,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            // Build system message by replacing placeholders
+            var systemMessage = LLMSystemMessages.HrQueryReasoningWithChunks
+                .Replace("{hrQuery}", hrQuery)
+                .Replace("{rankedCandidates}", rankedCandidatesJson)
+                .Replace("{answerToHrQuery}", answerToHrQueryJson)
+                .Replace("{aiSearchChunks}", aiSearchChunks);
+
+            // Prepare messages
+            var messages = new List<ChatMessage>
+                           {
+                               new SystemChatMessage(systemMessage),
+                               new UserChatMessage(hrQuery) // actual user query
+                           };
+
+            var options = new ChatCompletionOptions
+            {
+                MaxOutputTokenCount = 6000,  // adjust as needed
+                Temperature = 0.0f,          // deterministic reasoning
+                TopP = 1.0f
+            };
+
+            // Send to Azure OpenAI
+            var response = await _chatClient.CompleteChatAsync(messages, options);
+
+            // Return text output
+            return response.Value.Content[0].Text;
+        }
     }
 }
