@@ -20,7 +20,7 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
             var credential = new DefaultAzureCredential();
 
             // Azure Cognitive Search client
-            _searchClient = new SearchClient(new Uri("https://resume-rag-ai-search.search.windows.net"),"rag-1768540826117",credential);
+            _searchClient = new SearchClient(new Uri("https://resume-rag.search.windows.net"), "search-1776631061482", credential);
 
             // Azure OpenAI client for embeddings
             _azureOpenAIClient = new AzureOpenAIClient(new Uri("https://openai-llm-for-hr-resume-rag.openai.azure.com/"),credential);

@@ -3,6 +3,7 @@ using ResumeAI.RagwithGraph.Api.Endpoints;
 using ResumeAI.RagwithGraph.Api.Model;
 using ResumeAI.RagwithGraph.Api.Repositories.Implementation;
 using ResumeAI.RagwithGraph.Api.Repository.Declaration;
+using ResumeAI.RagwithGraph.Api.Repository.Implementation;
 using ResumeAI.RagwithGraph.Api.Services.Declaration;
 using ResumeAI.RagwithGraph.Api.Services.Implementation;
 using ResumeAI.RagwithGraph.Api.Swagger;
@@ -47,6 +48,7 @@ builder.Services.AddSingleton<BlobStorageService>();
 builder.Services.AddScoped<ILLMAdapterService, LLMAdapterService>();
 builder.Services.AddScoped<IAISearchService, AISearchService>();
 builder.Services.AddScoped<IResumeLLMOrchestrationService, ResumeLLMOrchestrationService>();
+builder.Services.AddSingleton<IResumeTextExtractor, ResumeTextExtractor>();
 
 var app = builder.Build();
 

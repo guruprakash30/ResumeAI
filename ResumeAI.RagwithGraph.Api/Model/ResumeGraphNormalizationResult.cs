@@ -52,7 +52,6 @@
 
     public sealed class RoleNode
     {
-        public Guid? Role_Id { get; set; }
         public string? Title { get; set; }
         public string? Level { get; set; }
     }

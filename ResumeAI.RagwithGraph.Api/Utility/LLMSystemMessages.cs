@@ -259,7 +259,6 @@
                    - Normalize role titles (e.g., ""SDE II"" → ""Software Engineer"")
                    - Do not invent job responsibilities
                    - Role level: Junior / Mid / Senior / Lead
-                   - role_id: null
                    
                    TimePeriod:
                    - Use ISO format (YYYY-MM-DD) when possible
@@ -332,7 +331,6 @@
                      ""work_experience"": [
                        {
                          ""role"": {
-                           ""role_id"": null,
                            ""title"": null,
                            ""level"": null
                          },
@@ -494,7 +492,6 @@
                    })
                    
                    (:Role {
-                       role_id: string,
                        title: string,
                        level: string
                    })
@@ -604,7 +601,7 @@
                                                 (:Skill { name, category })
                                                 (:Location { city, state, country })
                                                 (:SeniorityLevel { name })
-                                                (:Role { role_id, title, level })
+                                                (:Role { title, level })
                                                 (:Company { name, industry })
                                                 (:TimePeriod { from_date, to_date })
                                                 (:Project { project_id, name, domain, complexity, scale })

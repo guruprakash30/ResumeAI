@@ -11,11 +11,13 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
         private readonly BlobStorageService _blobStorageService;
         private readonly IResumeTextExtractor _textExtractor;
         private readonly ILLMAdapterService _lLMAdapterService;
-        public ResumeLLMOrchestrationService(BlobStorageService blobStorageService, IResumeTextExtractor textExtractor, ILLMAdapterService llmAdapter)
+        private readonly ILogger<ResumeLLMOrchestrationService> _logger;
+        public ResumeLLMOrchestrationService(ILogger<ResumeLLMOrchestrationService> logger, BlobStorageService blobStorageService, IResumeTextExtractor textExtractor, ILLMAdapterService llmAdapter)
         {
             _blobStorageService = blobStorageService;
             _textExtractor = textExtractor;
             _lLMAdapterService = llmAdapter;
+            _logger = logger;
         }
         public async Task<OperationResult<ResumeGraphNormalizationResult>> ProcessResumeFromBlobAsync(string fileLocation)
         {
@@ -46,6 +48,7 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
             }
             catch (Exception ex)
             {
+                await CommonLogger.LogExceptionAsync(_logger, ex, null);
                 return sRes.Failure();
             }
         }

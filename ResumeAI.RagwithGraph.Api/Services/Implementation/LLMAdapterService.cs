@@ -16,7 +16,7 @@ namespace ResumeAI.RagwithGraph.Api.Services.Implementation
         public LLMAdapterService()
         {
             var endpoint = new Uri("https://openai-llm-for-hr-resume-rag.openai.azure.com/");
-            var deploymentName = "gpt-4o-mini";
+            var deploymentName = "gpt-4.1-mini";
 
             var azureClient = new AzureOpenAIClient(endpoint, new DefaultAzureCredential());
 

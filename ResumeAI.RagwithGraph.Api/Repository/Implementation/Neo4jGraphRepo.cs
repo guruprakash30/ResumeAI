@@ -15,12 +15,11 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
         public Neo4jGraphRepo(IOptions<Neo4jOptions> options, ILogger<Neo4jGraphRepo> logger)
         {
             var cfg = options.Value;
-
             _driver = GraphDatabase.Driver(cfg.ConnectionUrl, AuthTokens.Basic(cfg.Username, cfg.Password));
             _logger = logger;
         }
 
-        public async Task<OperationResult> PersistJobAsync(Guid jobId,JobNode job,IEnumerable<SkillRequirement> skills)
+        public async Task<OperationResult> PersistJobAsync(Guid jobId, JobNode job, IEnumerable<SkillRequirement> skills)
         {
             IAsyncSession? session = null;
             OperationResult rRes = new();
@@ -31,60 +30,57 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                 await session.ExecuteWriteAsync(async tx =>
                 {
                     var jobCursor = await tx.RunAsync(
-                                    """
-                                        MERGE (j:Job { job_id: $jobId })
-                                        SET
-                                            j.title = $title,
-                                            j.location = $location,
-                                            j.min_experience = $minExperience,
-                                            j.job_description = $jobDescription,
-                                            j.posted_at = $postedAt
-                                     """,
-                                    new
-                                    {
-                                        jobId = jobId.ToString(),
-                                        title = job.Title,
-                                        location = job.Location,
-                                        minExperience = job.Min_Experience,
-                                        jobDescription = job.Job_Description,
-                                        postedAt = job.Posted_At
-                                    });
+                        """
+                        MERGE (j:Job { job_id: $jobId })
+                        SET
+                            j.title = $title,
+                            j.location = $location,
+                            j.min_experience = $minExperience,
+                            j.job_description = $jobDescription,
+                            j.posted_at = $postedAt
+                        """,
+                        new
+                        {
+                            jobId = jobId.ToString(),
+                            title = job.Title,
+                            location = job.Location,
+                            minExperience = job.Min_Experience,
+                            jobDescription = job.Job_Description,
+                            postedAt = job.Posted_At
+                        });
 
                     var jobSummary = await jobCursor.ConsumeAsync();
-
                     await CommonLogger.LogSummaryAsync(_logger, "Job upsert", jobSummary);
 
                     foreach (var skill in skills)
                     {
-                        var skillCursor =await tx.RunAsync(
-                                    """
-                                          MATCH (j:Job { job_id: $jobId })
-                                          MERGE (s:Skill { name: $name })
-                                          SET s.category = $category
-                                          MERGE (j)-[r:REQUIRES]->(s)
-                                          SET
-                                              r.weight = $weight,
-                                              r.min_years = $minYears
-                                     """,
-                                    new
-                                    {
-                                        jobId = jobId.ToString(),
-                                        name = skill.Name,
-                                        category = skill.Category,
-                                        weight = skill.Weight,
-                                        minYears = skill.Min_Years
-                                    });
+                        var skillCursor = await tx.RunAsync(
+                            """
+                            MATCH (j:Job { job_id: $jobId })
+                            MERGE (s:Skill { name: $name })
+                            SET s.category = $category
+                            MERGE (j)-[r:REQUIRES]->(s)
+                            SET
+                                r.weight = $weight,
+                                r.min_years = $minYears
+                            """,
+                            new
+                            {
+                                jobId = jobId.ToString(),
+                                name = skill.Name,
+                                category = skill.Category,
+                                weight = skill.Weight,
+                                minYears = skill.Min_Years
+                            });
 
                         var skillSummary = await skillCursor.ConsumeAsync();
                         await CommonLogger.LogSummaryAsync(_logger, $"Skill '{skill.Name}'", skillSummary);
                     }
-
-
                 });
 
                 return rRes.Success();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 await CommonLogger.LogExceptionAsync(_logger, ex, null);
                 return rRes.Failure();
@@ -103,9 +99,9 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
             try
             {
                 const string query = """
-                                 MATCH (j:Job { job_id: $jobId })
-                                 RETURN j.job_description AS jobDescription
-                                 """;
+                                     MATCH (j:Job { job_id: $jobId })
+                                     RETURN j.job_description AS jobDescription
+                                     """;
 
                 session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
 
@@ -135,7 +131,6 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
         public async Task<OperationResult> PersistResumeGraphAsync(Guid candidateId, ResumeGraphNormalizationResult resume)
         {
             var result = new OperationResult();
-
             IAsyncSession? session = null;
 
             try
@@ -146,12 +141,12 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                 {
                     // ---------- Candidate Node ----------
                     await tx.RunAsync(@"
-                    MERGE (c:Candidate { candidate_id: $candidateId })
-                    SET c.full_name = $fullName,
-                        c.email = $email,
-                        c.total_experience_years = $totalExperience,
-                        c.last_updated = $lastUpdated,
-                        c.resume_id = $resumeId
+                        MERGE (c:Candidate { candidate_id: $candidateId })
+                        SET c.full_name = $fullName,
+                            c.email = $email,
+                            c.total_experience_years = $totalExperience,
+                            c.last_updated = $lastUpdated,
+                            c.resume_id = $resumeId
                     ", new
                     {
                         candidateId = candidateId.ToString(),
@@ -163,31 +158,34 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     });
 
                     // ---------- Location ----------
-                    if (resume.Location != null)
+                    if (resume.Location != null &&
+                        (resume.Location.City != null ||
+                         resume.Location.State != null ||
+                         resume.Location.Country != null))
                     {
                         await tx.RunAsync(@"
-                        MERGE (l:Location { city: $city, state: $state, country: $country })
-                        WITH l
-                        MATCH (c:Candidate { candidate_id: $candidateId })
-                        MERGE (c)-[:LOCATED_IN]->(l)
-                    ", new
+                            MERGE (l:Location { city: $city, state: $state, country: $country })
+                            WITH l
+                            MATCH (c:Candidate { candidate_id: $candidateId })
+                            MERGE (c)-[:LOCATED_IN]->(l)
+                        ", new
                         {
                             candidateId = candidateId.ToString(),
-                            city = resume.Location.City,
-                            state = resume.Location.State,
-                            country = resume.Location.Country
+                            city = resume.Location.City ?? "Unknown",
+                            state = resume.Location.State ?? "Unknown",
+                            country = resume.Location.Country ?? "Unknown"
                         });
                     }
 
                     // ---------- Seniority ----------
-                    if (resume.Seniority != null)
+                    if (resume.Seniority?.Name != null)
                     {
                         await tx.RunAsync(@"
-                        MERGE (s:SeniorityLevel { name: $level })
-                        WITH s
-                        MATCH (c:Candidate { candidate_id: $candidateId })
-                        MERGE (c)-[:HAS_SENIORITY]->(s)
-                    ", new
+                            MERGE (s:SeniorityLevel { name: $level })
+                            WITH s
+                            MATCH (c:Candidate { candidate_id: $candidateId })
+                            MERGE (c)-[:HAS_SENIORITY]->(s)
+                        ", new
                         {
                             candidateId = candidateId.ToString(),
                             level = resume.Seniority.Name
@@ -197,18 +195,18 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     // ---------- Skills ----------
                     if (resume.Skills != null && resume.Skills.Count > 0)
                     {
-                        foreach (var skill in resume.Skills)
+                        foreach (var skill in resume.Skills.Where(s => s.Name != null))
                         {
                             await tx.RunAsync(@"
-                            MERGE (s:Skill { name: $name })
-                            SET s.category = $category
-                            WITH s
-                            MATCH (c:Candidate { candidate_id: $candidateId })
-                            MERGE (c)-[r:HAS_SKILL]->(s)
-                            SET r.years = $years,
-                                r.proficiency = $proficiency,
-                                r.last_used_year = $lastUsed
-                        ", new
+                                MERGE (s:Skill { name: $name })
+                                SET s.category = $category
+                                WITH s
+                                MATCH (c:Candidate { candidate_id: $candidateId })
+                                MERGE (c)-[r:HAS_SKILL]->(s)
+                                SET r.years = $years,
+                                    r.proficiency = $proficiency,
+                                    r.last_used_year = $lastUsed
+                            ", new
                             {
                                 candidateId = candidateId.ToString(),
                                 name = skill.Name,
@@ -223,28 +221,32 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     // ---------- Work Experience ----------
                     if (resume.Work_Experience != null && resume.Work_Experience.Count > 0)
                     {
-                        foreach (var work in resume.Work_Experience)
+                        foreach (var work in resume.Work_Experience.Where(w => w.Company?.Name != null))
                         {
+                            // if from_date is unknown, both default to UtcNow → zero duration → zero experience contribution
+                            // if from_date is known but to_date is null → current/ongoing job → to_date stays null
+                            var fromDate = work.Time_Period.From_Date ?? DateTime.UtcNow;
+                            var toDate = work.Time_Period.From_Date == null ? DateTime.UtcNow : work.Time_Period.To_Date;
+
                             await tx.RunAsync(@"
-                            MERGE (r:Role { role_id: $roleId })
-                            SET r.title = $title,
-                                r.level = $level
-                            MERGE (co:Company { name: $companyName })
-                            SET co.industry = $industry
-                            MERGE (tp:TimePeriod { from_date: $from, to_date: $to })
-                            WITH r, co, tp
-                            MATCH (c:Candidate { candidate_id: $candidateId })
-                            MERGE (c)-[:WORKED_AS]->(r)-[:AT_COMPANY]->(co)-[:During]->(tp)
-                        ", new
+                                MERGE (r:Role { title: $title })
+                                SET r.level = $level
+                                MERGE (co:Company { name: $companyName })
+                                SET co.industry = $industry
+                                MERGE (tp:TimePeriod { from_date: $from })
+                                SET tp.to_date = $to
+                                WITH r, co, tp
+                                MATCH (c:Candidate { candidate_id: $candidateId })
+                                MERGE (c)-[:WORKED_AS]->(r)-[:AT_COMPANY]->(co)-[:During]->(tp)
+                            ", new
                             {
                                 candidateId = candidateId.ToString(),
-                                roleId = work.Role.Role_Id?.ToString(),
-                                title = work.Role.Title,
-                                level = work.Role.Level,
+                                title = work.Role.Title ?? "Unknown",
+                                level = work.Role.Level ?? "Unknown",
                                 companyName = work.Company.Name,
-                                industry = work.Company.Industry,
-                                from = work.Time_Period.From_Date,
-                                to = work.Time_Period.To_Date
+                                industry = work.Company.Industry ?? "Unknown",
+                                from = fromDate,
+                                to = toDate
                             });
                         }
                     }
@@ -252,21 +254,21 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     // ---------- Projects ----------
                     if (resume.Projects != null && resume.Projects.Count > 0)
                     {
-                        foreach (var project in resume.Projects)
+                        foreach (var project in resume.Projects.Where(p => p.Name != null))
                         {
                             await tx.RunAsync(@"
-                            MERGE (p:Project { project_id: $projectId })
-                            SET p.name = $name,
-                                p.domain = $domain,
-                                p.complexity = $complexity,
-                                p.scale = $scale
-                            WITH p
-                            MATCH (c:Candidate { candidate_id: $candidateId })
-                            MERGE (c)-[:WORKED_ON]->(p)
-                        ", new
+                                MERGE (p:Project { project_id: $projectId })
+                                SET p.name = $name,
+                                    p.domain = $domain,
+                                    p.complexity = $complexity,
+                                    p.scale = $scale
+                                WITH p
+                                MATCH (c:Candidate { candidate_id: $candidateId })
+                                MERGE (c)-[:WORKED_ON]->(p)
+                            ", new
                             {
                                 candidateId = candidateId.ToString(),
-                                projectId = project.Project_Id?.ToString(),
+                                projectId = project.Project_Id?.ToString() ?? Guid.NewGuid().ToString(),
                                 name = project.Name,
                                 domain = project.Domain,
                                 complexity = project.Complexity,
@@ -278,24 +280,32 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                     // ---------- Education ----------
                     if (resume.Education != null && resume.Education.Count > 0)
                     {
-                        foreach (var edu in resume.Education)
+                        foreach (var edu in resume.Education.Where(e =>
+                            e.Degree?.Name != null ||
+                            e.Field_Of_Study?.Name != null ||
+                            e.Institution?.Name != null))
                         {
+                            // same date logic as work experience
+                            var fromDate = edu.Time_Period.From_Date ?? DateTime.UtcNow;
+                            var toDate = edu.Time_Period.From_Date == null ? DateTime.UtcNow : edu.Time_Period.To_Date;
+
                             await tx.RunAsync(@"
-                            MERGE (d:Degree { name: $degreeName })
-                            MERGE (f:FieldOfStudy { name: $fieldName })
-                            MERGE (i:Institution { name: $institutionName })
-                            MERGE (tp:TimePeriod { from_date: $from, to_date: $to })
-                            WITH d,f,i,tp
-                            MATCH (c:Candidate { candidate_id: $candidateId })
-                            MERGE (c)-[:EARNED_DEGREE]->(d)-[:IN_FIELD]->(f)-[:AT_INSTITUTION]->(i)-[:DURING]->(tp)
-                        ", new
+                                MERGE (d:Degree { name: $degreeName })
+                                MERGE (f:FieldOfStudy { name: $fieldName })
+                                MERGE (i:Institution { name: $institutionName })
+                                MERGE (tp:TimePeriod { from_date: $from })
+                                SET tp.to_date = $to
+                                WITH d,f,i,tp
+                                MATCH (c:Candidate { candidate_id: $candidateId })
+                                MERGE (c)-[:EARNED_DEGREE]->(d)-[:IN_FIELD]->(f)-[:AT_INSTITUTION]->(i)-[:DURING]->(tp)
+                            ", new
                             {
                                 candidateId = candidateId.ToString(),
-                                degreeName = edu.Degree.Name,
-                                fieldName = edu.Field_Of_Study.Name,
-                                institutionName = edu.Institution.Name,
-                                from = edu.Time_Period.From_Date,
-                                to = edu.Time_Period.To_Date
+                                degreeName = edu.Degree?.Name ?? "Unknown",
+                                fieldName = edu.Field_Of_Study?.Name ?? "Unknown",
+                                institutionName = edu.Institution?.Name ?? "Unknown",
+                                from = fromDate,
+                                to = toDate
                             });
                         }
                     }
@@ -327,43 +337,44 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
                 var currentYear = DateTime.UtcNow.Year;
 
                 const string query = """
-                                      MATCH (j:Job { job_id: $jobId })
-                                      WITH j, j.min_experience AS minExp
-                                      
-                                      // Filter candidates by total experience
-                                      MATCH (c:Candidate)
-                                      WHERE c.total_experience_years >= minExp
-                                      
-                                      // Match only required skills
-                                      MATCH (j)-[r:REQUIRES]->(s:Skill)
-                                      MATCH (c)-[cs:HAS_SKILL]->(s)
-                                      
-                                      WITH 
-                                          c,
-                                          r,
-                                          cs,
-                                          CASE 
-                                              WHEN cs.last_used_year IS NULL 
-                                              THEN 1.0
-                                              ELSE (1.0 / (1 + ($currentYear - cs.last_used_year)))
-                                          END AS recencyFactor
-                                      
-                                      WITH 
-                                          c,
-                                          SUM(
-                                              r.weight *
-                                              COALESCE(cs.years, 0) *
-                                              recencyFactor
-                                          ) AS totalScore
-                                      
-                                      RETURN 
-                                          c.candidate_id AS candidateId,
-                                          c.full_name AS fullName,
-                                          c.total_experience_years AS totalExperience,
-                                          c.resume_id AS resumeId,
-                                          totalScore AS score
-                                      ORDER BY score DESC
-                                      """;
+                     MATCH (j:Job { job_id: $jobId })
+                     WITH j, COALESCE(j.min_experience, 0) AS minExp
+
+                     MATCH (c:Candidate)
+                     WHERE COALESCE(c.total_experience_years, 0) >= minExp
+
+                     MATCH (j)-[r:REQUIRES]->(s:Skill)
+                     MATCH (c)-[cs:HAS_SKILL]->(s)
+
+                     WITH
+                         c,
+                         r,
+                         cs,
+                         CASE
+                             WHEN cs.last_used_year IS NULL
+                             THEN 1.0
+                             ELSE (1.0 / (1 + ($currentYear - cs.last_used_year)))
+                         END AS recencyFactor
+
+                     WITH
+                         c,
+                         SUM(
+                             COALESCE(r.weight, 1.0) *
+                             COALESCE(cs.years, 0) *
+                             recencyFactor
+                         ) AS totalScore
+
+                     WHERE totalScore > 0
+
+                     RETURN
+                         c.candidate_id AS candidateId,
+                         c.full_name AS fullName,
+                         c.total_experience_years AS totalExperience,
+                         c.resume_id AS resumeId,
+                         totalScore AS score
+                     ORDER BY score DESC
+                     LIMIT 25
+                     """;
 
                 var cursor = await session.RunAsync(query, new
                 {
@@ -433,5 +444,4 @@ namespace ResumeAI.RagwithGraph.Api.Repositories.Implementation
             await _driver.DisposeAsync();
         }
     }
-
 }
